@@ -1,4 +1,4 @@
-import { Room, LocalVideoTrack } from 'livekit-client';
+import { Room, LocalVideoTrack, LocalAudioTrack } from 'livekit-client';
 
 function log(msg) {
   const el = document.getElementById('debug-log');
@@ -29,7 +29,16 @@ document.getElementById('share-btn').addEventListener('click', async () => {
 
     const videoTrack = new LocalVideoTrack(localStream.getVideoTracks()[0]);
     await room.localParticipant.publishTrack(videoTrack);
-    log('Tela publicada com sucesso!');
+    log('Vídeo publicado');
+
+    const audioTracks = localStream.getAudioTracks();
+    if (audioTracks.length > 0) {
+      const audioTrack = new LocalAudioTrack(audioTracks[0]);
+      await room.localParticipant.publishTrack(audioTrack);
+      log('Áudio publicado');
+    } else {
+      log('Nenhuma track de áudio disponível (o navegador/guia não forneceu áudio)');
+    }
 
     localStream.getVideoTracks()[0].addEventListener('ended', stop);
   } catch (err) {

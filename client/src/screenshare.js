@@ -34,7 +34,7 @@ export async function startScreenShare() {
   if (!room) throw new Error('Sala não conectada ainda');
 
   localStream = await navigator.mediaDevices.getDisplayMedia({
-    video: { frameRate: 30 },
+    video: { frameRate: { ideal: 24, max: 30 } },
     audio: true,
   });
 

@@ -23,24 +23,48 @@ document.getElementById('share-btn').addEventListener('click', async () => {
     if (!room) await connect();
 
     localStream = await navigator.mediaDevices.getDisplayMedia({
-      video: { frameRate: 30 },
+      video: {
+        frameRate: { ideal: 30, max: 30 },
+        width: { ideal: 1920 },
+        height: { ideal: 1080 },
+      },
       audio: true,
     });
 
-    const videoTrack = new LocalVideoTrack(localStream.getVideoTracks()[0]);
-    await room.localParticipant.publishTrack(videoTrack);
-    log('Vídeo publicado');
+    const rawVideoTrack = localStream.getVideoTracks()[0];
+    rawVideoTrack.contentHint = 'motion'; // prioriza fluidez em vez de nitidez de texto
 
+    const videoTrack = new LocalVideoTrack(rawVideoTrack);
     const audioTracks = localStream.getAudioTracks();
+
+    const publishPromises = [
+      room.localParticipant.publishTrack(videoTrack, {
+        videoEncoding: {
+          maxBitrate: 3_000_000,
+          maxFramerate: 30,
+        },
+        simulcast: false,
+      }),
+    ];
+
     if (audioTracks.length > 0) {
       const audioTrack = new LocalAudioTrack(audioTracks[0]);
-      await room.localParticipant.publishTrack(audioTrack);
-      log('Áudio publicado');
+      publishPromises.push(
+        room.localParticipant.publishTrack(audioTrack, {
+          audioPreset: {
+            maxBitrate: 128_000,
+          },
+          dtx: false,
+        })
+      );
     } else {
       log('Nenhuma track de áudio disponível (o navegador/guia não forneceu áudio)');
     }
 
-    localStream.getVideoTracks()[0].addEventListener('ended', stop);
+    await Promise.all(publishPromises);
+    log(`Publicado: vídeo${audioTracks.length > 0 ? ' + áudio' : ' (sem áudio)'} em qualidade alta`);
+
+    rawVideoTrack.addEventListener('ended', stop);
   } catch (err) {
     log(`ERRO: ${err.name} - ${err.message}`);
   }

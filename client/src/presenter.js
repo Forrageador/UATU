@@ -6,7 +6,38 @@ function log(msg) {
 }
 
 let room = null;
-let localStream = null;
+let videoStream = null;
+let audioStream = null;
+
+// Popula o dropdown com os dispositivos de áudio disponíveis
+async function listAudioDevices() {
+  try {
+    const tempStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    tempStream.getTracks().forEach((t) => t.stop());
+  } catch (err) {
+    log(`Aviso: não foi possível pré-autorizar áudio (${err.message})`);
+  }
+
+  const devices = await navigator.mediaDevices.enumerateDevices();
+  const audioInputs = devices.filter((d) => d.kind === 'audioinput');
+
+  const select = document.getElementById('audio-source');
+  select.innerHTML = '';
+  const noneOption = document.createElement('option');
+  noneOption.value = '';
+  noneOption.textContent = 'Nenhum';
+  select.appendChild(noneOption);
+  audioInputs.forEach((device) => {
+    const option = document.createElement('option');
+    option.value = device.deviceId;
+    option.textContent = device.label || `Dispositivo ${device.deviceId.slice(0, 6)}`;
+    select.appendChild(option);
+  });
+
+  log(`Dispositivos de áudio encontrados: ${audioInputs.length}`);
+}
+
+listAudioDevices();
 
 async function connect() {
   const res = await fetch('/api/presenter-token', { method: 'POST' });
@@ -22,7 +53,8 @@ document.getElementById('share-btn').addEventListener('click', async () => {
   try {
     if (!room) await connect();
 
-    localStream = await navigator.mediaDevices.getDisplayMedia({
+    // Vídeo + áudio: captura de tela com áudio embutido
+    videoStream = await navigator.mediaDevices.getDisplayMedia({
       video: {
         frameRate: { ideal: 30, max: 30 },
         width: { ideal: 1920 },
@@ -31,38 +63,48 @@ document.getElementById('share-btn').addEventListener('click', async () => {
       audio: true,
     });
 
-    const rawVideoTrack = localStream.getVideoTracks()[0];
-    rawVideoTrack.contentHint = 'motion'; // prioriza fluidez em vez de nitidez de texto
-
+    const rawVideoTrack = videoStream.getVideoTracks()[0];
+    rawVideoTrack.contentHint = 'motion';
     const videoTrack = new LocalVideoTrack(rawVideoTrack);
-    const audioTracks = localStream.getAudioTracks();
 
+    // Publica tracks: vídeo sempre, áudio do stream se existir
     const publishPromises = [
       room.localParticipant.publishTrack(videoTrack, {
-        videoEncoding: {
-          maxBitrate: 3_000_000,
-          maxFramerate: 30,
-        },
+        videoEncoding: { maxBitrate: 3_000_000, maxFramerate: 30 },
         simulcast: false,
       }),
     ];
 
-    if (audioTracks.length > 0) {
-      const audioTrack = new LocalAudioTrack(audioTracks[0]);
+    const screenAudioTrack = videoStream.getAudioTracks()[0];
+    if (screenAudioTrack) {
+      const lkScreenAudio = new LocalAudioTrack(screenAudioTrack);
+      publishPromises.push(
+        room.localParticipant.publishTrack(lkScreenAudio, {
+          audioPreset: { maxBitrate: 128_000 },
+          dtx: false,
+        }),
+      );
+    }
+
+    // Fonte de áudio externa (opcional)
+    const selectedDeviceId = document.getElementById('audio-source').value;
+    if (selectedDeviceId) {
+      audioStream = await navigator.mediaDevices.getUserMedia({
+        audio: { deviceId: { exact: selectedDeviceId } },
+      });
+      const rawAudioTrack = audioStream.getAudioTracks()[0];
+      const audioTrack = new LocalAudioTrack(rawAudioTrack);
       publishPromises.push(
         room.localParticipant.publishTrack(audioTrack, {
-          audioPreset: {
-            maxBitrate: 128_000,
-          },
+          audioPreset: { maxBitrate: 128_000 },
           dtx: false,
-        })
+        }),
       );
-    } else {
-      log('Nenhuma track de áudio disponível (o navegador/guia não forneceu áudio)');
     }
 
     await Promise.all(publishPromises);
-    log(`Publicado: vídeo${audioTracks.length > 0 ? ' + áudio' : ' (sem áudio)'} em qualidade alta`);
+    log('Publicado: vídeo (tela) + áudio do stream' +
+        (selectedDeviceId ? ' + áudio (fonte selecionada)' : ''));
 
     rawVideoTrack.addEventListener('ended', stop);
   } catch (err) {
@@ -73,8 +115,13 @@ document.getElementById('share-btn').addEventListener('click', async () => {
 document.getElementById('stop-btn').addEventListener('click', stop);
 
 function stop() {
-  if (!localStream) return;
-  localStream.getTracks().forEach((t) => t.stop());
-  localStream = null;
+  if (videoStream) {
+    videoStream.getTracks().forEach((t) => t.stop());
+    videoStream = null;
+  }
+  if (audioStream) {
+    audioStream.getTracks().forEach((t) => t.stop());
+    audioStream = null;
+  }
   log('Compartilhamento parado');
 }

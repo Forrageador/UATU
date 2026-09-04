@@ -26,6 +26,14 @@ async function setup() {
   return auth;
 }
 
+function updateStatus(msg, isError = false) {
+  const el = document.getElementById('status-text');
+  if (el) {
+    el.textContent = msg;
+    el.style.color = isError ? '#f38ba8' : '#a6e3a1';
+  }
+}
+
 // Registra o botão de transmitir imediatamente, independente de quando a auth terminar
 function setupBroadcastButton() {
   const broadcastBtn = document.getElementById('broadcast-btn');
@@ -41,6 +49,7 @@ function setupBroadcastButton() {
 
     try {
       await discordSdk.commands.openExternalLink({ url: presenterUrl });
+      updateStatus('Link de transmissão aberto no navegador!');
     } catch (err) {
       console.warn('openExternalLink falhou, tentando fallback:', err);
       try {
@@ -50,7 +59,8 @@ function setupBroadcastButton() {
       try {
         await navigator.clipboard.writeText(presenterUrl);
         const originalText = broadcastBtn.innerHTML;
-        broadcastBtn.textContent = 'Link copiado! Abra no seu navegador';
+        broadcastBtn.textContent = 'Link copiado! Abra no navegador';
+        updateStatus('Link copiado! Cole no seu navegador');
         setTimeout(() => {
           broadcastBtn.innerHTML = originalText;
         }, 3500);
@@ -64,24 +74,33 @@ function setupBroadcastButton() {
 setupBroadcastButton();
 initFullscreenControls();
 
-setup()
-  .then(async (auth) => {
-    console.log('Discord autenticado com sucesso!');
+async function start() {
+  try {
+    updateStatus('Conectando ao Discord SDK...');
+    const auth = await setup();
+
+    updateStatus('Obtendo token da sala LiveKit...');
     const res = await fetch('/.proxy/api/livekit-token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ access_token: auth.access_token }),
     });
+
     if (!res.ok) {
       const errBody = await res.text();
-      throw new Error(`Erro ao obter livekit-token (${res.status}): ${errBody}`);
+      throw new Error(`Erro em /.proxy/api/livekit-token (${res.status}): ${errBody.slice(0, 100)}`);
     }
-    const { token } = await res.json();
 
-    console.log('Conectando ao LiveKit no Discord...');
-    await connectRoom(token);
-    console.log('Conectado ao LiveKit no Discord com sucesso!');
-  })
-  .catch((err) => {
+    const { token, livekitUrl: serverLivekitUrl } = await res.json();
+    updateStatus('Conectando à sala LiveKit...');
+
+    // Passa a URL recebida do servidor caso o proxy do discordsays falhe
+    await connectRoom(token, serverLivekitUrl);
+    updateStatus('Conectado à sala! Aguardando transmissão...');
+  } catch (err) {
     console.error('Erro no setup do Discord:', err);
-  });
+    updateStatus(`Erro: ${err.message}`, true);
+  }
+}
+
+start();

@@ -300,23 +300,36 @@ export function initFullscreenControls() {
 }
 
 
-export async function connectRoom(token) {
+function updateParticipantCount() {
+  const countEl = document.getElementById('participant-count');
+  if (countEl) {
+    countEl.textContent = `${participants.size} participante${participants.size !== 1 ? 's' : ''}`;
+  }
+}
+
+export async function connectRoom(token, fallbackLivekitUrl) {
   room = new Room();
 
   room.on(RoomEvent.ParticipantConnected, (participant) => {
+    console.log('Novo participante conectado:', participant.identity);
     if (!participants.has(participant.identity)) {
       createParticipantCard(participant.identity);
+      updateParticipantCount();
     }
   });
 
   room.on(RoomEvent.ParticipantDisconnected, (participant) => {
+    console.log('Participante desconectado:', participant.identity);
     closeFullscreenIfMatches(participant.identity);
     removeParticipantCard(participant.identity);
+    updateParticipantCount();
   });
 
   room.on(RoomEvent.TrackSubscribed, (track, _pub, participant) => {
+    console.log('Track recebida:', track.kind, 'de', participant.identity);
     if (!participants.has(participant.identity)) {
       createParticipantCard(participant.identity);
+      updateParticipantCount();
     }
     if (track.kind === 'video') {
       attachVideoToCard(participant.identity, track);
@@ -329,12 +342,25 @@ export async function connectRoom(token) {
     detachTrackFromCard(participant.identity, track);
   });
 
-  const livekitUrl = `wss://${import.meta.env.VITE_DISCORD_CLIENT_ID}.discordsays.com/.proxy/livekit`;
-  await room.connect(livekitUrl, token);
+  const proxyUrl = `wss://${import.meta.env.VITE_DISCORD_CLIENT_ID}.discordsays.com/.proxy/livekit`;
+  
+  try {
+    console.log('Tentando conectar ao LiveKit via proxy do Discord:', proxyUrl);
+    await room.connect(proxyUrl, token);
+  } catch (proxyErr) {
+    console.warn('Conexão via proxy do Discord falhou:', proxyErr);
+    if (fallbackLivekitUrl) {
+      console.log('Tentando conectar diretamente ao LiveKit Cloud:', fallbackLivekitUrl);
+      await room.connect(fallbackLivekitUrl, token);
+    } else {
+      throw proxyErr;
+    }
+  }
 
   room.remoteParticipants.forEach((participant) => {
     if (!participants.has(participant.identity)) {
       createParticipantCard(participant.identity);
+      updateParticipantCount();
     }
     participant.trackPublications.forEach((pub) => {
       if (pub.track && pub.isSubscribed) {
@@ -347,5 +373,6 @@ export async function connectRoom(token) {
     });
   });
 
+  updateParticipantCount();
   return room;
 }

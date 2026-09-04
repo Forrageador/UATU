@@ -118,7 +118,6 @@ function createCardControls(identity) {
     if (!data) return;
     if (data.videoEl) data.videoEl.volume = vol;
     data.audioEls.forEach((a) => (a.volume = vol));
-    // sincroniza slider do fullscreen se for o mesmo participante
     if (fullscreenIdentity === identity) {
       const fsSlider = document.getElementById('fullscreen-volume-slider');
       const fsVideo = document.getElementById('fullscreen-video');
@@ -160,7 +159,6 @@ function attachVideoToCard(identity, track) {
     data.videoEl = null;
   }
 
-  // oculta avatar
   const avatar = data.card.querySelector('.avatar-placeholder');
   if (avatar) avatar.style.display = 'none';
 
@@ -288,7 +286,6 @@ function closeFullscreenIfMatches(identity) {
   if (fullscreenIdentity === identity) closeFullscreen();
 }
 
-// ─── controles do overlay de tela cheia ─────────────────────────────────────
 
 export function initFullscreenControls() {
   const exitBtn = document.getElementById('fullscreen-exit-btn');

@@ -9,7 +9,6 @@ let room = null;
 let videoStream = null;
 let audioStream = null;
 
-// fontes de audio
 async function listAudioDevices() {
   try {
     const tempStream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -40,7 +39,6 @@ async function listAudioDevices() {
 listAudioDevices();
 
 async function connect() {
-  // Se houver VITE_SERVER_URL definida (ex: Railway), usa ela garantindo https://
   let serverBase = (import.meta.env.VITE_SERVER_URL || '').trim().replace(/\/$/, '');
   if (serverBase && !serverBase.startsWith('http://') && !serverBase.startsWith('https://')) {
     serverBase = `https://${serverBase}`;
@@ -58,8 +56,6 @@ async function connect() {
   const { token, livekitUrl: serverLivekitUrl } = data;
   log(`Token recebido: ${token ? 'OK' : 'FALHOU'}`);
 
-  // Fora do Discord, precisa usar a URL direta do LiveKit (ex: wss://...livekit.cloud).
-  // Dentro do proxy do Discord, usaria wss://<id>.discordsays.com/.proxy/livekit.
   const livekitUrl = serverLivekitUrl || `wss://${import.meta.env.VITE_DISCORD_CLIENT_ID}.discordsays.com/.proxy/livekit`;
   log(`Conectando ao LiveKit...`);
 
@@ -109,7 +105,6 @@ document.getElementById('share-btn').addEventListener('click', async () => {
       );
     }
 
-    // Fonte de áudio externa (opcional)
     const selectedDeviceId = document.getElementById('audio-source').value;
     if (selectedDeviceId) {
       audioStream = await navigator.mediaDevices.getUserMedia({

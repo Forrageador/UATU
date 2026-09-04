@@ -4,7 +4,6 @@ import './style.css';
 
 const discordSdk = new DiscordSDK(import.meta.env.VITE_DISCORD_CLIENT_ID);
 
-// Helper para chamar API via proxy do Discord com fallback direto para o Railway
 async function fetchApi(path, body) {
   let serverBase = (import.meta.env.VITE_SERVER_URL || '').trim().replace(/\/$/, '');
   if (serverBase && !serverBase.startsWith('http://') && !serverBase.startsWith('https://')) {
@@ -14,7 +13,6 @@ async function fetchApi(path, body) {
   const proxyPath = path.startsWith('/') ? `/.proxy/api${path}` : `/.proxy/api/${path}`;
   const directPath = serverBase ? (path.startsWith('/') ? `${serverBase}/api${path}` : `${serverBase}/api/${path}`) : null;
 
-  // 1. Tenta via proxy do Discord
   try {
     const res = await fetch(proxyPath, {
       method: 'POST',
@@ -23,7 +21,6 @@ async function fetchApi(path, body) {
     });
 
     const text = await res.text();
-    // Se não for HTML e status for ok
     if (res.ok && !text.trim().startsWith('<')) {
       return JSON.parse(text);
     }
@@ -32,7 +29,6 @@ async function fetchApi(path, body) {
     console.warn('Erro ao chamar proxy do Discord:', err);
   }
 
-  // 2. Fallback direto para o servidor Railway
   if (directPath) {
     console.log('Tentando chamada direta ao servidor backend:', directPath);
     const directRes = await fetch(directPath, {
@@ -74,7 +70,6 @@ function updateStatus(msg, isError = false) {
   }
 }
 
-// Registra o botão de transmitir imediatamente, independente de quando a auth terminar
 function setupBroadcastButton() {
   const broadcastBtn = document.getElementById('broadcast-btn');
   if (!broadcastBtn) return;
@@ -125,7 +120,6 @@ async function start() {
     });
     updateStatus('Conectando à sala LiveKit...');
 
-    // Passa a URL recebida do servidor caso o proxy do discordsays falhe
     await connectRoom(token, serverLivekitUrl);
     updateStatus('Conectado à sala! Aguardando transmissão...');
   } catch (err) {

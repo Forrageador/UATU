@@ -2,15 +2,12 @@ import express from "express";
 import dotenv from "dotenv";
 import { AccessToken } from "livekit-server-sdk";
 
-// Em desenvolvimento carrega o .env da raiz do monorepo.
-// No Railway as variáveis já existem no ambiente — dotenv ignora silenciosamente.
 dotenv.config({ path: "../.env" });
-dotenv.config(); // fallback: .env na mesma pasta, se existir
+dotenv.config();
 
 const app = express();
 app.use(express.json());
 
-// Permite requisições do presenter rodando fora do Discord (ex: Cloudflare Pages)
 app.use((req, res, next) => {
   res.header("Access-Control-Allow-Origin", "*");
   res.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
@@ -21,7 +18,6 @@ app.use((req, res, next) => {
   next();
 });
 
-// Troca o OAuth2 "code" do Discord por um access_token real.
 app.post(["/api/token", "/token", "/.proxy/api/token"], async (req, res) => {
   const { code } = req.body;
 
@@ -51,7 +47,6 @@ app.post(["/api/token", "/token", "/.proxy/api/token"], async (req, res) => {
   }
 });
 
-// Gera um token JWT do LiveKit para um usuário do Discord entrar na sala.
 app.post(["/api/livekit-token", "/livekit-token", "/.proxy/api/livekit-token"], async (req, res) => {
   try {
     const at = new AccessToken(
@@ -71,7 +66,6 @@ app.post(["/api/livekit-token", "/livekit-token", "/.proxy/api/livekit-token"], 
   }
 });
 
-// Gera um token JWT do LiveKit para o apresentador.
 app.post(["/api/presenter-token", "/presenter-token", "/.proxy/api/presenter-token"], async (req, res) => {
   try {
     const at = new AccessToken(

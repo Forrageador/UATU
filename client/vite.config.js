@@ -41,6 +41,8 @@ export default defineConfig(({ mode }) => {
         input: {
           main: resolve(__dirname, 'index.html'),
           presenter: resolve(__dirname, 'presenter.html'),
+          terms: resolve(__dirname, 'terms.html'),
+          privacy: resolve(__dirname, 'privacy.html'),
         },
       },
     },

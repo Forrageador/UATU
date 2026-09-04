@@ -40,8 +40,11 @@ async function listAudioDevices() {
 listAudioDevices();
 
 async function connect() {
-  // Se houver VITE_SERVER_URL definida (ex: Railway), usa ela. Senão usa o proxy relativo.
-  const serverBase = import.meta.env.VITE_SERVER_URL ? import.meta.env.VITE_SERVER_URL.replace(/\/$/, '') : '';
+  // Se houver VITE_SERVER_URL definida (ex: Railway), usa ela garantindo https://
+  let serverBase = (import.meta.env.VITE_SERVER_URL || '').trim().replace(/\/$/, '');
+  if (serverBase && !serverBase.startsWith('http://') && !serverBase.startsWith('https://')) {
+    serverBase = `https://${serverBase}`;
+  }
   const tokenEndpoint = serverBase ? `${serverBase}/api/presenter-token` : '/.proxy/api/presenter-token';
 
   log(`Obtendo token de: ${tokenEndpoint}`);

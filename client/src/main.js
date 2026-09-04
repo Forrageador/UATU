@@ -42,7 +42,11 @@ setup()
     const broadcastBtn = document.getElementById('broadcast-btn');
     broadcastBtn.addEventListener('click', async () => {
       // Prioriza URL configurada (ex: https://uatu.pages.dev/presenter.html)
-      const presenterUrl = import.meta.env.VITE_PRESENTER_URL || new URL('/presenter.html', window.location.href).href;
+      let customPresenterUrl = (import.meta.env.VITE_PRESENTER_URL || '').trim();
+      if (customPresenterUrl && !customPresenterUrl.startsWith('http://') && !customPresenterUrl.startsWith('https://')) {
+        customPresenterUrl = `https://${customPresenterUrl}`;
+      }
+      const presenterUrl = customPresenterUrl || new URL('/presenter.html', window.location.href).href;
       console.log('Tentando abrir presenter:', presenterUrl);
 
       try {

@@ -1,7 +1,11 @@
 import express from "express";
 import dotenv from "dotenv";
 import { AccessToken } from "livekit-server-sdk";
+
+// Em desenvolvimento carrega o .env da raiz do monorepo.
+// No Railway as variáveis já existem no ambiente — dotenv ignora silenciosamente.
 dotenv.config({ path: "../.env" });
+dotenv.config(); // fallback: .env na mesma pasta, se existir
 
 const app = express();
 app.use(express.json());

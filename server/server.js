@@ -22,8 +22,7 @@ app.use((req, res, next) => {
 });
 
 // Troca o OAuth2 "code" do Discord por um access_token real.
-// O secret nunca é exposto no frontend — a troca acontece aqui, no servidor.
-app.post("/api/token", async (req, res) => {
+app.post(["/api/token", "/token", "/.proxy/api/token"], async (req, res) => {
   const { code } = req.body;
 
   try {
@@ -53,7 +52,7 @@ app.post("/api/token", async (req, res) => {
 });
 
 // Gera um token JWT do LiveKit para um usuário do Discord entrar na sala.
-app.post("/api/livekit-token", async (req, res) => {
+app.post(["/api/livekit-token", "/livekit-token", "/.proxy/api/livekit-token"], async (req, res) => {
   try {
     const at = new AccessToken(
       process.env.LIVEKIT_API_KEY,
@@ -72,8 +71,8 @@ app.post("/api/livekit-token", async (req, res) => {
   }
 });
 
-// Gera um token JWT do LiveKit para o apresentador (sem autenticação Discord).
-app.post("/api/presenter-token", async (req, res) => {
+// Gera um token JWT do LiveKit para o apresentador.
+app.post(["/api/presenter-token", "/presenter-token", "/.proxy/api/presenter-token"], async (req, res) => {
   try {
     const at = new AccessToken(
       process.env.LIVEKIT_API_KEY,

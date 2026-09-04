@@ -26,51 +26,62 @@ async function setup() {
   return auth;
 }
 
+// Registra o botão de transmitir imediatamente, independente de quando a auth terminar
+function setupBroadcastButton() {
+  const broadcastBtn = document.getElementById('broadcast-btn');
+  if (!broadcastBtn) return;
+
+  broadcastBtn.addEventListener('click', async () => {
+    let customPresenterUrl = (import.meta.env.VITE_PRESENTER_URL || '').trim();
+    if (customPresenterUrl && !customPresenterUrl.startsWith('http://') && !customPresenterUrl.startsWith('https://')) {
+      customPresenterUrl = `https://${customPresenterUrl}`;
+    }
+    const presenterUrl = customPresenterUrl || new URL('/presenter.html', window.location.href).href;
+    console.log('Tentando abrir presenter:', presenterUrl);
+
+    try {
+      await discordSdk.commands.openExternalLink({ url: presenterUrl });
+    } catch (err) {
+      console.warn('openExternalLink falhou, tentando fallback:', err);
+      try {
+        window.open(presenterUrl, '_blank');
+      } catch (_) {}
+
+      try {
+        await navigator.clipboard.writeText(presenterUrl);
+        const originalText = broadcastBtn.innerHTML;
+        broadcastBtn.textContent = 'Link copiado! Abra no seu navegador';
+        setTimeout(() => {
+          broadcastBtn.innerHTML = originalText;
+        }, 3500);
+      } catch (copyErr) {
+        alert(`Abra este link no seu navegador para transmitir:\n${presenterUrl}`);
+      }
+    }
+  });
+}
+
+setupBroadcastButton();
+initFullscreenControls();
+
 setup()
   .then(async (auth) => {
+    console.log('Discord autenticado com sucesso!');
     const res = await fetch('/.proxy/api/livekit-token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ access_token: auth.access_token }),
     });
+    if (!res.ok) {
+      const errBody = await res.text();
+      throw new Error(`Erro ao obter livekit-token (${res.status}): ${errBody}`);
+    }
     const { token } = await res.json();
 
-    initFullscreenControls();
-
+    console.log('Conectando ao LiveKit no Discord...');
     await connectRoom(token);
-
-    const broadcastBtn = document.getElementById('broadcast-btn');
-    broadcastBtn.addEventListener('click', async () => {
-      // Prioriza URL configurada (ex: https://uatu.pages.dev/presenter.html)
-      let customPresenterUrl = (import.meta.env.VITE_PRESENTER_URL || '').trim();
-      if (customPresenterUrl && !customPresenterUrl.startsWith('http://') && !customPresenterUrl.startsWith('https://')) {
-        customPresenterUrl = `https://${customPresenterUrl}`;
-      }
-      const presenterUrl = customPresenterUrl || new URL('/presenter.html', window.location.href).href;
-      console.log('Tentando abrir presenter:', presenterUrl);
-
-      try {
-        await discordSdk.commands.openExternalLink({ url: presenterUrl });
-      } catch (err) {
-        console.warn('openExternalLink falhou, tentando fallback:', err);
-        try {
-          window.open(presenterUrl, '_blank');
-        } catch (_) {}
-
-        // Fallback: copia o link para a área de transferência e dá feedback no botão
-        try {
-          await navigator.clipboard.writeText(presenterUrl);
-          const originalText = broadcastBtn.innerHTML;
-          broadcastBtn.textContent = 'Link copiado! Abra no seu navegador';
-          setTimeout(() => {
-            broadcastBtn.innerHTML = originalText;
-          }, 3500);
-        } catch (copyErr) {
-          alert(`Abra este link no seu navegador para transmitir:\n${presenterUrl}`);
-        }
-      }
-    });
+    console.log('Conectado ao LiveKit no Discord com sucesso!');
   })
   .catch((err) => {
-    console.error('Erro no setup:', err);
+    console.error('Erro no setup do Discord:', err);
   });

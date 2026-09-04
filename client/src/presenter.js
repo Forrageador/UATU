@@ -40,19 +40,32 @@ async function listAudioDevices() {
 listAudioDevices();
 
 async function connect() {
-  const res = await fetch('/.proxy/api/presenter-token', { method: 'POST' });
-  const { token } = await res.json();
+  // Se houver VITE_SERVER_URL definida (ex: Railway), usa ela. Senão usa o proxy relativo.
+  const serverBase = import.meta.env.VITE_SERVER_URL ? import.meta.env.VITE_SERVER_URL.replace(/\/$/, '') : '';
+  const tokenEndpoint = serverBase ? `${serverBase}/api/presenter-token` : '/.proxy/api/presenter-token';
+
+  log(`Obtendo token de: ${tokenEndpoint}`);
+  const res = await fetch(tokenEndpoint, { method: 'POST' });
+  if (!res.ok) {
+    const errorText = await res.text();
+    throw new Error(`Servidor retornou status ${res.status}: ${errorText.slice(0, 100)}`);
+  }
+
+  const data = await res.json();
+  const { token, livekitUrl: serverLivekitUrl } = data;
   log(`Token recebido: ${token ? 'OK' : 'FALHOU'}`);
 
-  const livekitUrl = `wss://${import.meta.env.VITE_DISCORD_CLIENT_ID}.discordsays.com/.proxy/livekit`;
+  // Fora do Discord, precisa usar a URL direta do LiveKit (ex: wss://...livekit.cloud).
+  // Dentro do proxy do Discord, usaria wss://<id>.discordsays.com/.proxy/livekit.
+  const livekitUrl = serverLivekitUrl || `wss://${import.meta.env.VITE_DISCORD_CLIENT_ID}.discordsays.com/.proxy/livekit`;
+  log(`Conectando ao LiveKit...`);
 
   const newRoom = new Room();
   try {
     await newRoom.connect(livekitUrl, token);
     room = newRoom; // só atribui APÓS conectar com sucesso
-    log('Conectado na sala LiveKit');
+    log('Conectado na sala LiveKit com sucesso!');
   } catch (err) {
-
     room = null;
     throw err;
   }

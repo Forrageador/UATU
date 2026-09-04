@@ -10,6 +10,17 @@ dotenv.config(); // fallback: .env na mesma pasta, se existir
 const app = express();
 app.use(express.json());
 
+// Permite requisições do presenter rodando fora do Discord (ex: Cloudflare Pages)
+app.use((req, res, next) => {
+  res.header("Access-Control-Allow-Origin", "*");
+  res.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(200);
+  }
+  next();
+});
+
 // Troca o OAuth2 "code" do Discord por um access_token real.
 // O secret nunca é exposto no frontend — a troca acontece aqui, no servidor.
 app.post("/api/token", async (req, res) => {

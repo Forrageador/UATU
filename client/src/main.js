@@ -39,12 +39,31 @@ setup()
 
     await connectRoom(token);
 
-    document.getElementById('broadcast-btn').addEventListener('click', async () => {
-      const presenterUrl = new URL('/presenter.html', window.location.href).href;
+    const broadcastBtn = document.getElementById('broadcast-btn');
+    broadcastBtn.addEventListener('click', async () => {
+      // Prioriza URL configurada (ex: https://uatu.pages.dev/presenter.html)
+      const presenterUrl = import.meta.env.VITE_PRESENTER_URL || new URL('/presenter.html', window.location.href).href;
+      console.log('Tentando abrir presenter:', presenterUrl);
+
       try {
         await discordSdk.commands.openExternalLink({ url: presenterUrl });
-      } catch {
-        window.open(presenterUrl, '_blank');
+      } catch (err) {
+        console.warn('openExternalLink falhou, tentando fallback:', err);
+        try {
+          window.open(presenterUrl, '_blank');
+        } catch (_) {}
+
+        // Fallback: copia o link para a área de transferência e dá feedback no botão
+        try {
+          await navigator.clipboard.writeText(presenterUrl);
+          const originalText = broadcastBtn.innerHTML;
+          broadcastBtn.textContent = 'Link copiado! Abra no seu navegador';
+          setTimeout(() => {
+            broadcastBtn.innerHTML = originalText;
+          }, 3500);
+        } catch (copyErr) {
+          alert(`Abra este link no seu navegador para transmitir:\n${presenterUrl}`);
+        }
       }
     });
   })

@@ -40,20 +40,28 @@ async function listAudioDevices() {
 listAudioDevices();
 
 async function connect() {
-  const res = await fetch('/api/presenter-token', { method: 'POST' });
-  const { livekitUrl, token } = await res.json();
+  const res = await fetch('/.proxy/api/presenter-token', { method: 'POST' });
+  const { token } = await res.json();
   log(`Token recebido: ${token ? 'OK' : 'FALHOU'}`);
 
-  room = new Room();
-  await room.connect(livekitUrl, token);
-  log('Conectado na sala LiveKit');
+  const livekitUrl = `wss://${import.meta.env.VITE_DISCORD_CLIENT_ID}.discordsays.com/.proxy/livekit`;
+
+  const newRoom = new Room();
+  try {
+    await newRoom.connect(livekitUrl, token);
+    room = newRoom; // só atribui APÓS conectar com sucesso
+    log('Conectado na sala LiveKit');
+  } catch (err) {
+
+    room = null;
+    throw err;
+  }
 }
 
 document.getElementById('share-btn').addEventListener('click', async () => {
   try {
     if (!room) await connect();
 
-    // captura de tela com áudio embutido
     videoStream = await navigator.mediaDevices.getDisplayMedia({
       video: {
         frameRate: { ideal: 30, max: 30 },
@@ -114,7 +122,6 @@ document.getElementById('share-btn').addEventListener('click', async () => {
 document.getElementById('stop-btn').addEventListener('click', stop);
 
 async function stop() {
-  // Para os streams de mídia locais
   if (videoStream) {
     videoStream.getTracks().forEach((t) => t.stop());
     videoStream = null;
@@ -124,7 +131,6 @@ async function stop() {
     audioStream = null;
   }
 
-  // Remove as tracks publicadas e desconecta da sala LiveKit
   if (room) {
     try {
       await room.localParticipant.unpublishAllTracks();

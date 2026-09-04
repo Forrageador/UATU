@@ -7,38 +7,31 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# Dependências
 node_modules
 
-# Sensitive environment variables
+# Variáveis de ambiente sensíveis
 .env
 .env.*
 !.env.example
-!example.env
 
-# Modules + built files
-node_modules
-dist
-dist-ssr
+# Build e arquivos gerados (Vite / Node)
+dist/
+dist-ssr/
+build/
+.vite/
 *.local
 
-# Editor directories and files
+# Editor
 .vscode/*
 !.vscode/extensions.json
-.idea
+.idea/
+
+# Sistema Operacional
 .DS_Store
+Thumbs.db
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
-
-# Build e arquivos gerados (Vite / Node)
-dist/
-build/
-.vite/
-
-# Sistema Operacional e Editores
-.DS_Store
-Thumbs.db
-.vscode/
-.idea/

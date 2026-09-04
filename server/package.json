@@ -13,7 +13,6 @@
   "dependencies": {
     "dotenv": "^17.4.2",
     "express": "^4.22.2",
-    "livekit-server-sdk": "^2.18.0",
-    "node-fetch": "^3.3.2"
+    "livekit-server-sdk": "^2.18.0"
   }
 }

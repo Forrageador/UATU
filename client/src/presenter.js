@@ -9,7 +9,7 @@ let room = null;
 let videoStream = null;
 let audioStream = null;
 
-// Popula o dropdown com os dispositivos de áudio disponíveis
+// fontes de audio
 async function listAudioDevices() {
   try {
     const tempStream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -53,7 +53,7 @@ document.getElementById('share-btn').addEventListener('click', async () => {
   try {
     if (!room) await connect();
 
-    // Vídeo + áudio: captura de tela com áudio embutido
+    // captura de tela com áudio embutido
     videoStream = await navigator.mediaDevices.getDisplayMedia({
       video: {
         frameRate: { ideal: 30, max: 30 },
@@ -67,7 +67,6 @@ document.getElementById('share-btn').addEventListener('click', async () => {
     rawVideoTrack.contentHint = 'motion';
     const videoTrack = new LocalVideoTrack(rawVideoTrack);
 
-    // Publica tracks: vídeo sempre, áudio do stream se existir
     const publishPromises = [
       room.localParticipant.publishTrack(videoTrack, {
         videoEncoding: { maxBitrate: 3_000_000, maxFramerate: 30 },
@@ -114,7 +113,8 @@ document.getElementById('share-btn').addEventListener('click', async () => {
 
 document.getElementById('stop-btn').addEventListener('click', stop);
 
-function stop() {
+async function stop() {
+  // Para os streams de mídia locais
   if (videoStream) {
     videoStream.getTracks().forEach((t) => t.stop());
     videoStream = null;
@@ -123,5 +123,17 @@ function stop() {
     audioStream.getTracks().forEach((t) => t.stop());
     audioStream = null;
   }
+
+  // Remove as tracks publicadas e desconecta da sala LiveKit
+  if (room) {
+    try {
+      await room.localParticipant.unpublishAllTracks();
+      await room.disconnect();
+    } catch (err) {
+      log(`Aviso ao desconectar do LiveKit: ${err.message}`);
+    }
+    room = null;
+  }
+
   log('Compartilhamento parado');
 }

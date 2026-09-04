@@ -92,7 +92,11 @@ app.post("/api/presenter-token", async (req, res) => {
   }
 });
 
+app.get("/", (req, res) => {
+  res.json({ status: "ok", app: "UATU Server" });
+});
+
 const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => {
-  console.log(`Server rodando em http://localhost:${PORT}`);
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`Server rodando na porta ${PORT}`);
 });

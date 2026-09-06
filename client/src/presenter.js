@@ -74,13 +74,15 @@ document.getElementById('share-btn').addEventListener('click', async () => {
   try {
     if (!room) await connect();
 
+    const shareSystemAudio = document.getElementById('share-system-audio').checked;
+
     videoStream = await navigator.mediaDevices.getDisplayMedia({
       video: {
         frameRate: { ideal: 30, max: 30 },
         width: { ideal: 1920 },
         height: { ideal: 1080 },
       },
-      audio: true,
+      audio: shareSystemAudio,
     });
 
     const rawVideoTrack = videoStream.getVideoTracks()[0];

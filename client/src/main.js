@@ -8,14 +8,6 @@ async function setupAudioOutputSelection() {
   const select = document.getElementById('audio-output-select');
   if (!select) return;
 
-  try {
-    // Pedir permissão rápida de áudio para liberar os labels dos dispositivos de saída
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    stream.getTracks().forEach(t => t.stop());
-  } catch (err) {
-    console.warn('Permissão de áudio negada, labels podem não aparecer', err);
-  }
-
   const updateDevices = async () => {
     const devices = await navigator.mediaDevices.enumerateDevices();
     const audioOutputs = devices.filter(d => d.kind === 'audiooutput');
@@ -23,16 +15,28 @@ async function setupAudioOutputSelection() {
     const currentVal = select.value;
     select.innerHTML = '<option value="">Padrão do Sistema</option>';
     
+    let hasHiddenLabels = false;
+
     audioOutputs.forEach(d => {
-      // Ignora o dispositivo padrão que já está representado
-      if (d.deviceId === 'default') return;
+      if (d.deviceId === 'default' || d.deviceId === 'communications') return;
+      if (!d.label) hasHiddenLabels = true;
+      
       const opt = document.createElement('option');
       opt.value = d.deviceId;
-      opt.textContent = d.label || `Dispositivo ${d.deviceId.slice(0, 5)}`;
+      // Exibe parte do ID apenas se o label estiver vazio
+      opt.textContent = d.label || `Dispositivo de Áudio (${d.deviceId.slice(0, 4)}...)`;
       select.appendChild(opt);
     });
 
-    if (currentVal && audioOutputs.find(d => d.deviceId === currentVal)) {
+    if (hasHiddenLabels) {
+      const unlockOpt = document.createElement('option');
+      unlockOpt.value = 'unlock';
+      unlockOpt.textContent = '🔓 Mostrar nomes reais...';
+      unlockOpt.style.color = '#f38ba8';
+      select.appendChild(unlockOpt);
+    }
+
+    if (currentVal && (audioOutputs.find(d => d.deviceId === currentVal) || currentVal === 'unlock')) {
       select.value = currentVal;
     }
   };
@@ -40,7 +44,22 @@ async function setupAudioOutputSelection() {
   await updateDevices();
   navigator.mediaDevices.addEventListener('devicechange', updateDevices);
 
-  select.addEventListener('change', () => {
+  select.addEventListener('change', async () => {
+    if (select.value === 'unlock') {
+      try {
+        // Pede permissão de áudio para liberar a leitura dos "labels"
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        stream.getTracks().forEach(t => t.stop());
+        select.value = ''; // Reseta para padrão enquanto recarrega
+        await updateDevices(); // Atualiza a lista agora com os nomes liberados
+      } catch (err) {
+        console.warn('Permissão negada ou falha ao obter acesso ao microfone', err);
+        alert('É necessário permitir acesso ao microfone para ver os nomes dos dispositivos de saída.');
+        select.value = '';
+      }
+      return;
+    }
+
     setAudioOutputDevice(select.value);
   });
 }

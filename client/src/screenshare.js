@@ -373,3 +373,26 @@ export async function connectRoom(token, fallbackLivekitUrl) {
   updateParticipantCount();
   return room;
 }
+
+export async function setAudioOutputDevice(deviceId) {
+  if (room) {
+    try {
+      await room.switchActiveDevice('audiooutput', deviceId);
+      console.log('LiveKit: Dispositivo de saída de áudio alterado para', deviceId);
+    } catch (err) {
+      console.warn('LiveKit switchActiveDevice falhou:', err);
+    }
+  }
+
+  // Fallback manual para todos os elementos gerenciados (garantia)
+  for (const [id, data] of participants.entries()) {
+    if (data.videoEl && typeof data.videoEl.setSinkId === 'function') {
+      data.videoEl.setSinkId(deviceId).catch(console.warn);
+    }
+    data.audioEls.forEach((el) => {
+      if (typeof el.setSinkId === 'function') {
+        el.setSinkId(deviceId).catch(console.warn);
+      }
+    });
+  }
+}

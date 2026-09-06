@@ -1,8 +1,51 @@
 import { DiscordSDK } from '@discord/embedded-app-sdk';
-import { connectRoom, initFullscreenControls } from './screenshare';
+import { connectRoom, initFullscreenControls, setAudioOutputDevice } from './screenshare';
 import './style.css';
 
 const discordSdk = new DiscordSDK(import.meta.env.VITE_DISCORD_CLIENT_ID);
+
+async function setupAudioOutputSelection() {
+  const select = document.getElementById('audio-output-select');
+  if (!select) return;
+
+  try {
+    // Pedir permissão rápida de áudio para liberar os labels dos dispositivos de saída
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    stream.getTracks().forEach(t => t.stop());
+  } catch (err) {
+    console.warn('Permissão de áudio negada, labels podem não aparecer', err);
+  }
+
+  const updateDevices = async () => {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const audioOutputs = devices.filter(d => d.kind === 'audiooutput');
+    
+    const currentVal = select.value;
+    select.innerHTML = '<option value="">Padrão do Sistema</option>';
+    
+    audioOutputs.forEach(d => {
+      // Ignora o dispositivo padrão que já está representado
+      if (d.deviceId === 'default') return;
+      const opt = document.createElement('option');
+      opt.value = d.deviceId;
+      opt.textContent = d.label || `Dispositivo ${d.deviceId.slice(0, 5)}`;
+      select.appendChild(opt);
+    });
+
+    if (currentVal && audioOutputs.find(d => d.deviceId === currentVal)) {
+      select.value = currentVal;
+    }
+  };
+
+  await updateDevices();
+  navigator.mediaDevices.addEventListener('devicechange', updateDevices);
+
+  select.addEventListener('change', () => {
+    setAudioOutputDevice(select.value);
+  });
+}
+
+
 
 async function fetchApi(path, body) {
   let serverBase = (import.meta.env.VITE_SERVER_URL || '').trim().replace(/\/$/, '');
@@ -108,6 +151,7 @@ function setupBroadcastButton() {
 
 setupBroadcastButton();
 initFullscreenControls();
+setupAudioOutputSelection();
 
 async function start() {
   try {

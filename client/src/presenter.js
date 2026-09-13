@@ -123,8 +123,12 @@ document.getElementById('share-btn').addEventListener('click', async () => {
     }
 
     await Promise.all(publishPromises);
-    log('Publicado: vídeo (tela) + áudio do stream' +
+    log('Publicado: vídeo (tela)' +
+        (screenAudioTrack ? ' + áudio da guia/sistema' : '') +
         (selectedDeviceId ? ' + áudio (fonte selecionada)' : ''));
+    if (shareSystemAudio && !screenAudioTrack) {
+      log('Aviso: a captura veio sem áudio da guia/sistema. Para compartilhar esse áudio, pare e selecione uma guia com a opção de compartilhar áudio ativada na janela do navegador.');
+    }
 
     rawVideoTrack.addEventListener('ended', stop);
   } catch (err) {

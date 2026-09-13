@@ -74,43 +74,52 @@ async function fetchApi(path, body) {
 
   const proxyPath = path.startsWith('/') ? `/.proxy/api${path}` : `/.proxy/api/${path}`;
   const directPath = serverBase ? (path.startsWith('/') ? `${serverBase}/api${path}` : `${serverBase}/api/${path}`) : null;
+  const insideDiscord = window.location.hostname.endsWith('.discordsays.com');
+  const endpoint = !insideDiscord && directPath ? directPath : proxyPath;
 
+  let res;
   try {
-    const res = await fetch(proxyPath, {
+    res = await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
 
-    const text = await res.text();
-    if (res.ok && !text.trim().startsWith('<')) {
-      return JSON.parse(text);
-    }
-    console.warn(`Proxy do Discord retornou status ${res.status} (${text.slice(0, 80)}). Tentando fallback...`);
   } catch (err) {
-    console.warn('Erro ao chamar proxy do Discord:', err);
+    console.error(`Erro de rede ao chamar ${endpoint}:`, err);
+    throw new Error(`Não foi possível acessar a API em ${endpoint}. Verifique a disponibilidade do servidor e o mapeamento /api da atividade.`);
   }
 
-  if (directPath) {
-    console.log('Tentando chamada direta ao servidor backend:', directPath);
-    const directRes = await fetch(directPath, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    const directText = await directRes.text();
-    if (!directRes.ok || directText.trim().startsWith('<')) {
-      throw new Error(`Servidor retornou status ${directRes.status}: ${directText.slice(0, 100)}`);
+  let data;
+  try {
+    data = await res.json();
+  } catch {
+    if (res.status === 429) {
+      throw new Error('Limite de requisições atingido. Aguarde antes de abrir a atividade novamente.');
     }
-    return JSON.parse(directText);
+    throw new Error(`A API em ${endpoint} retornou uma resposta inválida (HTTP ${res.status}). Verifique o servidor e o mapeamento /api da atividade.`);
   }
 
-  throw new Error(`Falha ao contactar a API em ${proxyPath} (resposta inválida).`);
+  if (!res.ok) {
+    const message = data?.error_description || data?.message || data?.error;
+    // Reconhece também o bloqueio retornado como HTTP 400 por versões anteriores do backend.
+    if (res.status === 429 || /rate.?limit/i.test(message || '')) {
+      const retryAfter = Number(data?.retry_after);
+      const wait = Number.isFinite(retryAfter) && retryAfter > 0
+        ? `Aguarde ${Math.ceil(retryAfter)} segundos antes de tentar novamente.`
+        : 'Aguarde antes de abrir a atividade novamente.';
+      throw new Error(`Limite de requisições atingido no Discord. ${wait}`);
+    }
+    throw new Error(`Falha na API (HTTP ${res.status}): ${message || 'erro ao processar a solicitação'}`);
+  }
+
+  return data;
 }
 
 async function setup() {
   await discordSdk.ready();
 
+  updateStatus('Solicitando autorização ao Discord...');
   const { code } = await discordSdk.commands.authorize({
     client_id: import.meta.env.VITE_DISCORD_CLIENT_ID,
     response_type: 'code',
@@ -119,7 +128,9 @@ async function setup() {
     scope: ['identify', 'guilds', 'applications.commands'],
   });
 
+  updateStatus('Obtendo token de autenticação do Discord...');
   const { access_token } = await fetchApi('/token', { code });
+  updateStatus('Autenticando no Discord...');
   const auth = await discordSdk.commands.authenticate({ access_token });
   return auth;
 }

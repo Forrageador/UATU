@@ -35,9 +35,11 @@ app.post(["/api/token", "/token", "/.proxy/api/token"], async (req, res) => {
 
     const data = await response.json();
 
-    if (!data.access_token) {
+    if (!response.ok || !data.access_token) {
       console.error("Discord OAuth2 não retornou access_token:", data);
-      return res.status(400).json(data);
+      const retryAfter = response.headers.get("retry-after");
+      if (retryAfter) res.set("Retry-After", retryAfter);
+      return res.status(response.ok ? 502 : response.status).json(data);
     }
 
     res.json({ access_token: data.access_token });

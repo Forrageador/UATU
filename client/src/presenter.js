@@ -39,6 +39,11 @@ async function listAudioDevices() {
 listAudioDevices();
 
 async function connect() {
+  const session = new URLSearchParams(window.location.search).get('session');
+  if (!session) {
+    throw new Error('Sessão de apresentador ausente. Abra esta página pelo botão da atividade.');
+  }
+
   let serverBase = (import.meta.env.VITE_SERVER_URL || '').trim().replace(/\/$/, '');
   if (serverBase && !serverBase.startsWith('http://') && !serverBase.startsWith('https://')) {
     serverBase = `https://${serverBase}`;
@@ -46,7 +51,11 @@ async function connect() {
   const tokenEndpoint = serverBase ? `${serverBase}/api/presenter-token` : '/.proxy/api/presenter-token';
 
   log(`Obtendo token de: ${tokenEndpoint}`);
-  const res = await fetch(tokenEndpoint, { method: 'POST' });
+  const res = await fetch(tokenEndpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ session }),
+  });
   if (!res.ok) {
     const errorText = await res.text();
     throw new Error(`Servidor retornou status ${res.status}: ${errorText.slice(0, 100)}`);

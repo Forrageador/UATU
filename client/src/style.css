@@ -71,6 +71,14 @@ html, body, #app {
   user-select: none;
 }
 
+.avatar-image {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  object-fit: cover;
+  user-select: none;
+}
+
 .participant-name {
   font-size: 12px;
   color: #a0a0b8;

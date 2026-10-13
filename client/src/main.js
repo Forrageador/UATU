@@ -3,6 +3,7 @@ import { connectRoom, initFullscreenControls, setAudioOutputDevice } from './scr
 import './style.css';
 
 const discordSdk = new DiscordSDK(import.meta.env.VITE_DISCORD_CLIENT_ID);
+let currentAuth = null;
 
 async function setupAudioOutputSelection() {
   const select = document.getElementById('audio-output-select');
@@ -148,24 +149,44 @@ function setupBroadcastButton() {
   if (!broadcastBtn) return;
 
   broadcastBtn.addEventListener('click', async () => {
+    if (!currentAuth?.access_token) {
+      updateStatus('Aguarde a autenticação terminar antes de transmitir.', true);
+      return;
+    }
+
     let customPresenterUrl = (import.meta.env.VITE_PRESENTER_URL || '').trim();
     if (customPresenterUrl && !customPresenterUrl.startsWith('http://') && !customPresenterUrl.startsWith('https://')) {
       customPresenterUrl = `https://${customPresenterUrl}`;
     }
-    const presenterUrl = customPresenterUrl || new URL('/presenter.html', window.location.href).href;
-    console.log('Tentando abrir presenter:', presenterUrl);
+
+    let session;
+    try {
+      updateStatus('Preparando transmissão...');
+      ({ session } = await fetchApi('/presenter-session', {
+        access_token: currentAuth.access_token,
+      }));
+    } catch (err) {
+      console.error('Não foi possível preparar a transmissão:', err);
+      updateStatus(`Erro ao preparar transmissão: ${err.message}`, true);
+      return;
+    }
+
+    const presenterUrl = new URL(customPresenterUrl || '/presenter.html', window.location.href);
+    presenterUrl.searchParams.set('session', session);
+    const presenterLink = presenterUrl.toString();
+    console.log('Tentando abrir presenter:', presenterLink);
 
     try {
-      await discordSdk.commands.openExternalLink({ url: presenterUrl });
+      await discordSdk.commands.openExternalLink({ url: presenterLink });
       updateStatus('Link de transmissão aberto no navegador!');
     } catch (err) {
       console.warn('openExternalLink falhou, tentando fallback:', err);
       try {
-        window.open(presenterUrl, '_blank');
+        window.open(presenterLink, '_blank');
       } catch (_) {}
 
       try {
-        await navigator.clipboard.writeText(presenterUrl);
+        await navigator.clipboard.writeText(presenterLink);
         const originalText = broadcastBtn.innerHTML;
         broadcastBtn.textContent = 'Link copiado! Abra no navegador';
         updateStatus('Link copiado! Cole no seu navegador');
@@ -173,7 +194,7 @@ function setupBroadcastButton() {
           broadcastBtn.innerHTML = originalText;
         }, 3500);
       } catch (copyErr) {
-        alert(`Abra este link no seu navegador para transmitir:\n${presenterUrl}`);
+        alert(`Abra este link no seu navegador para transmitir:\n${presenterLink}`);
       }
     }
   });
@@ -187,6 +208,7 @@ async function start() {
   try {
     updateStatus('Conectando ao Discord SDK...');
     const auth = await setup();
+    currentAuth = auth;
 
     updateStatus('Obtendo token da sala LiveKit...');
     const { token, livekitUrl: serverLivekitUrl } = await fetchApi('/livekit-token', {

@@ -7,7 +7,10 @@ const participants = new Map();
 let fullscreenIdentity = null;
 
 
-function getDisplayName(identity) {
+function getDisplayName(identity, profile) {
+  if (profile?.displayName || profile?.username) {
+    return profile.displayName || profile.username;
+  }
   if (!identity) return 'Desconhecido';
   if (identity.startsWith('presenter-')) {
     const suffix = identity.slice('presenter-'.length);
@@ -20,9 +23,63 @@ function getDisplayName(identity) {
   return identity;
 }
 
-function getInitial(identity) {
-  const name = getDisplayName(identity);
+function getInitial(identity, profile) {
+  const name = getDisplayName(identity, profile);
   return name ? name[0].toUpperCase() : '?';
+}
+
+function getParticipantProfile(participant) {
+  if (!participant?.metadata) return null;
+
+  try {
+    const metadata = JSON.parse(participant.metadata);
+    return metadata?.profile || null;
+  } catch {
+    return null;
+  }
+}
+
+function renderParticipantCard(identity) {
+  const data = participants.get(identity);
+  if (!data) return;
+
+  const avatarWrap = data.card.querySelector('.avatar-placeholder');
+  const nameEl = data.card.querySelector('.participant-name');
+  if (!avatarWrap || !nameEl) return;
+
+  const displayName = getDisplayName(identity, data.profile);
+  nameEl.textContent = displayName;
+  avatarWrap.replaceChildren();
+
+  if (data.profile?.avatarUrl) {
+    const image = document.createElement('img');
+    image.className = 'avatar-image';
+    image.alt = '';
+    image.src = data.profile.avatarUrl;
+    image.addEventListener('error', () => {
+      data.profile = { ...data.profile, avatarUrl: null };
+      renderParticipantCard(identity);
+    }, { once: true });
+    avatarWrap.appendChild(image);
+  } else {
+    const circle = document.createElement('div');
+    circle.className = 'avatar-circle';
+    circle.textContent = getInitial(identity, data.profile);
+    avatarWrap.appendChild(circle);
+  }
+
+  avatarWrap.appendChild(nameEl);
+
+  const label = data.card.querySelector('.stream-label');
+  if (label) label.textContent = displayName;
+}
+
+function updateParticipantProfile(identity, profile) {
+  if (!profile) return;
+  const data = participants.get(identity);
+  if (!data) return;
+  data.profile = { ...data.profile, ...profile };
+  renderParticipantCard(identity);
 }
 
 
@@ -44,8 +101,14 @@ function updateGridLayout() {
 }
 
 
-function createParticipantCard(identity) {
+function createParticipantCard(identity, profile = null) {
   const grid = document.getElementById('participants-grid');
+
+  const existing = participants.get(identity);
+  if (existing) {
+    updateParticipantProfile(identity, profile);
+    return existing.card;
+  }
 
   const card = document.createElement('div');
   card.className = 'participant-card';
@@ -54,21 +117,16 @@ function createParticipantCard(identity) {
   const avatarWrap = document.createElement('div');
   avatarWrap.className = 'avatar-placeholder';
 
-  const circle = document.createElement('div');
-  circle.className = 'avatar-circle';
-  circle.textContent = getInitial(identity);
-
   const nameEl = document.createElement('div');
   nameEl.className = 'participant-name';
-  nameEl.textContent = getDisplayName(identity);
 
-  avatarWrap.appendChild(circle);
   avatarWrap.appendChild(nameEl);
   card.appendChild(avatarWrap);
 
   grid.appendChild(card);
 
-  participants.set(identity, { card, videoEl: null, audioEls: [] });
+  participants.set(identity, { card, videoEl: null, audioEls: [], profile });
+  renderParticipantCard(identity);
   updateGridLayout();
   return card;
 }
@@ -91,7 +149,7 @@ function createCardControls(identity) {
 
   const label = document.createElement('span');
   label.className = 'stream-label';
-  label.textContent = getDisplayName(identity);
+  label.textContent = getDisplayName(identity, participants.get(identity)?.profile);
 
   const volWrap = document.createElement('div');
   volWrap.className = 'volume-control';
@@ -253,7 +311,7 @@ function openFullscreen(identity) {
   fsVideo.volume = data.videoEl.volume;
 
   if (fsSlider) fsSlider.value = data.videoEl.volume * 100;
-  if (fsLabel) fsLabel.textContent = getDisplayName(identity);
+  if (fsLabel) fsLabel.textContent = getDisplayName(identity, data.profile);
 
   if (fsSlider) {
     fsSlider.oninput = () => {
@@ -309,9 +367,12 @@ export async function connectRoom(token, fallbackLivekitUrl) {
 
   room.on(RoomEvent.ParticipantConnected, (participant) => {
     console.log('Novo participante conectado:', participant.identity);
+    const profile = getParticipantProfile(participant);
     if (!participants.has(participant.identity)) {
-      createParticipantCard(participant.identity);
+      createParticipantCard(participant.identity, profile);
       updateParticipantCount();
+    } else {
+      updateParticipantProfile(participant.identity, profile);
     }
   });
 
@@ -324,9 +385,12 @@ export async function connectRoom(token, fallbackLivekitUrl) {
 
   room.on(RoomEvent.TrackSubscribed, (track, _pub, participant) => {
     console.log('Track recebida:', track.kind, 'de', participant.identity);
+    const profile = getParticipantProfile(participant);
     if (!participants.has(participant.identity)) {
-      createParticipantCard(participant.identity);
+      createParticipantCard(participant.identity, profile);
       updateParticipantCount();
+    } else {
+      updateParticipantProfile(participant.identity, profile);
     }
     if (track.kind === 'video') {
       attachVideoToCard(participant.identity, track);
@@ -337,6 +401,10 @@ export async function connectRoom(token, fallbackLivekitUrl) {
 
   room.on(RoomEvent.TrackUnsubscribed, (track, _pub, participant) => {
     detachTrackFromCard(participant.identity, track);
+  });
+
+  room.on(RoomEvent.ParticipantMetadataChanged, (_metadata, participant) => {
+    updateParticipantProfile(participant.identity, getParticipantProfile(participant));
   });
 
   const proxyUrl = `wss://${import.meta.env.VITE_DISCORD_CLIENT_ID}.discordsays.com/.proxy/livekit`;
@@ -355,9 +423,12 @@ export async function connectRoom(token, fallbackLivekitUrl) {
   }
 
   room.remoteParticipants.forEach((participant) => {
+    const profile = getParticipantProfile(participant);
     if (!participants.has(participant.identity)) {
-      createParticipantCard(participant.identity);
+      createParticipantCard(participant.identity, profile);
       updateParticipantCount();
+    } else {
+      updateParticipantProfile(participant.identity, profile);
     }
     participant.trackPublications.forEach((pub) => {
       if (pub.track && pub.isSubscribed) {
